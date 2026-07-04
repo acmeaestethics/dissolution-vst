@@ -22,12 +22,14 @@ juce_add_plugin(Dissolution
     NEEDS_MIDI_OUTPUT           FALSE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD     FALSE
+    COPY_PLUGIN_AFTER_BUILD     TRUE
     PLUGIN_MANUFACTURER_CODE    "WnAu"
     PLUGIN_CODE                 "Dsln"
     FORMATS                     VST3 Standalone
     PRODUCT_NAME                "Dissolution"
 )
+
+juce_generate_juce_header(Dissolution)
 
 target_sources(Dissolution PRIVATE
     src/PluginProcessor.cpp

@@ -8,24 +8,20 @@ void FeedbackMatrix::prepare(double sr, int /*maxBlockSize*/)
 
 void FeedbackMatrix::reset()
 {
-    for (auto& s : state) { s.s1 = 0; s.s2 = 0; }
+    s1[0] = s1[1] = s2[0] = s2[1] = 0.0f;
 }
 
-// Topology-preserving TPT state-variable filter, single sample.
-// Returns band-pass output (richest harmonic content for self-oscillation).
-static float svfSample(FeedbackMatrix::SVFState& s, float x,
+// TPT state-variable filter, single sample. Returns band-pass output.
+// fbAmt injects BP back into input — past ~unity gain it self-oscillates.
+static float svfSample(float& st1, float& st2, float x,
                        float g, float k, float fbAmt)
 {
-    // Inject feedback from band-pass back into input — above k~2 it self-oscillates
-    x += fbAmt * s.s1;
-
-    float hp = (x - k * s.s1 - s.s2) / (1.0f + g * (g + k));
-    float bp = g * hp + s.s1;
-    float lp = g * bp + s.s2;
-
-    s.s1 = 2.0f * bp - s.s1;
-    s.s2 = 2.0f * lp - s.s2;
-
+    x += fbAmt * st1;
+    float hp = (x - k * st1 - st2) / (1.0f + g * (g + k));
+    float bp = g * hp + st1;
+    float lp = g * bp + st2;
+    st1 = 2.0f * bp - st1;
+    st2 = 2.0f * lp - st2;
     return bp;
 }
 
@@ -34,25 +30,15 @@ void FeedbackMatrix::process(juce::AudioBuffer<float>& buffer, float chaos, floa
     const int numChannels = buffer.getNumChannels();
     const int numSamples  = buffer.getNumSamples();
 
-    // freq: 0..1 → 80..6000 Hz
-    float hz  = 80.0f * std::pow(75.0f, freq);
-    float g   = std::tan(juce::MathConstants<float>::pi * hz / static_cast<float>(sampleRate));
-    // Q: as chaos rises, Q rises sharply (resonance)
-    float q   = 0.5f + chaos * 8.0f;
-    float k   = 1.0f / q;
-
-    // fbAmt > 0 injects band-pass output back into input.
-    // Past ~unity this creates a sustained tone; chaos controls how far over.
+    float hz    = 80.0f * std::pow(75.0f, freq); // 0..1 → 80..6000 Hz
+    float g     = std::tan(juce::MathConstants<float>::pi * hz / static_cast<float>(sampleRate));
+    float k     = 1.0f / (0.5f + chaos * 8.0f);
     float fbAmt = chaos * 1.15f;
 
-    for (int ch = 0; ch < numChannels; ++ch)
+    for (int ch = 0; ch < juce::jmin(numChannels, 2); ++ch)
     {
         auto* d = buffer.getWritePointer(ch);
         for (int i = 0; i < numSamples; ++i)
-        {
-            float out = svfSample(state[ch], d[i], g, k, fbAmt);
-            // Soft-clip to keep things from exploding into silence
-            d[i] = std::tanh(out);
-        }
+            d[i] = std::tanh(svfSample(s1[ch], s2[ch], d[i], g, k, fbAmt));
     }
 }

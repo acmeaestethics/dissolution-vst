@@ -48,13 +48,13 @@ DissolutionProcessor::DissolutionProcessor()
 {
 }
 
-void DissolutionProcessor::prepareToPlay(double sr, int blockSize)
+void DissolutionProcessor::prepareToPlay(double sr, int maxBlock)
 {
-    fuzz.prepare(sr, blockSize);
-    feedbackMatrix.prepare(sr, blockSize);
-    shimmer.prepare(sr, blockSize);
-    freeze.prepare(sr, blockSize);
-    dryBuffer.setSize(2, blockSize);
+    fuzz.prepare(sr, maxBlock);
+    feedbackMatrix.prepare(sr, maxBlock);
+    shimmer.prepare(sr, maxBlock);
+    freeze.prepare(sr, maxBlock);
+    dryBuffer.setSize(2, maxBlock);
 }
 
 void DissolutionProcessor::releaseResources()
@@ -144,6 +144,11 @@ void DissolutionProcessor::setStateInformation(const void* data, int sizeInBytes
     std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
     if (xml && xml->hasTagName(apvts.state.getType()))
         apvts.replaceState(juce::ValueTree::fromXml(*xml));
+}
+
+juce::AudioProcessorEditor* DissolutionProcessor::createEditor()
+{
+    return new DissolutionEditor(*this);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

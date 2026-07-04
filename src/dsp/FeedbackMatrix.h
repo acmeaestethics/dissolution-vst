@@ -11,10 +11,7 @@ public:
 
 private:
     double sampleRate = 44100.0;
-
-    // Per-channel SVF state
-    struct SVFState { float s1 = 0, s2 = 0; };
-    SVFState state[2];
-
+    float s1[2] = { 0, 0 };
+    float s2[2] = { 0, 0 };
     juce::Random rng;
 };
