@@ -25,8 +25,10 @@ juce_add_plugin(Dissolution
     COPY_PLUGIN_AFTER_BUILD     TRUE
     PLUGIN_MANUFACTURER_CODE    "WnAu"
     PLUGIN_CODE                 "Dsln"
-    FORMATS                     VST3 Standalone
+    BUNDLE_ID                   "com.wayneaudio.dissolution"
+    FORMATS                     VST3 AU Standalone
     PRODUCT_NAME                "Dissolution"
+    MICROPHONE_PERMISSION_ENABLED TRUE
 )
 
 juce_generate_juce_header(Dissolution)
