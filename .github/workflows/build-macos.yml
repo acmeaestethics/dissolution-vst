@@ -7,10 +7,13 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-latest  # Apple Silicon (arm64)
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: brew install ninja
 
       - name: Cache JUCE source
         uses: actions/cache@v4
@@ -20,12 +23,12 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build -G Xcode \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --parallel
 
       - name: Upload VST3
         uses: actions/upload-artifact@v4
