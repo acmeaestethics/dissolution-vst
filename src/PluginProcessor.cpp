@@ -9,33 +9,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout DissolutionProcessor::create
 
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // Fuzz
-    layout.add(std::make_unique<Param>("fuzz_drive",   "Fuzz Drive",   NR(0.0f, 1.0f, 0.01f), 0.0f));
-    layout.add(std::make_unique<Param>("fuzz_tone",    "Fuzz Tone",    NR(0.0f, 1.0f, 0.01f), 0.7f));
-    layout.add(std::make_unique<Param>("fuzz_octave",  "Octave Up",    NR(0.0f, 1.0f, 0.01f), 0.0f));
-
-    // Feedback chaos filter
-    layout.add(std::make_unique<Param>("fb_chaos",     "Chaos",        NR(0.0f, 1.0f, 0.01f), 0.0f));
-    layout.add(std::make_unique<Param>("fb_freq",      "Chaos Freq",   NR(0.0f, 1.0f, 0.01f), 0.4f));
-
-    // Crusher
-    layout.add(std::make_unique<Param>("crush_bits",   "Bit Depth",    NR(1.0f, 16.0f, 0.1f), 16.0f));
-    layout.add(std::make_unique<Param>("crush_rate",   "Rate Crush",   NR(0.0f, 1.0f,  0.01f), 0.0f));
-
-    // Shimmer reverb
-    layout.add(std::make_unique<Param>("rev_size",     "Room Size",    NR(0.0f, 1.0f, 0.01f), 0.6f));
-    layout.add(std::make_unique<Param>("rev_damp",     "Damp",         NR(0.0f, 1.0f, 0.01f), 0.5f));
-    layout.add(std::make_unique<Param>("rev_shimmer",  "Shimmer",      NR(0.0f, 1.0f, 0.01f), 0.0f));
-    layout.add(std::make_unique<Param>("rev_mix",      "Reverb Mix",   NR(0.0f, 1.0f, 0.01f), 0.4f));
-
-    // Spectral freeze
-    layout.add(std::make_unique<ParamB>("freeze",      "Freeze",       false));
-
-    // Noise floor
-    layout.add(std::make_unique<Param>("noise",        "Noise Floor",  NR(0.0f, 1.0f, 0.01f), 0.0f));
-
-    // Global
-    layout.add(std::make_unique<Param>("wet_dry",      "Wet/Dry",      NR(0.0f, 1.0f, 0.01f), 1.0f));
+    layout.add(std::make_unique<Param>("fuzz_drive",  "Fuzz Drive",  NR(0.0f, 1.0f,  0.01f), 0.0f));
+    layout.add(std::make_unique<Param>("fuzz_tone",   "Fuzz Tone",   NR(0.0f, 1.0f,  0.01f), 0.7f));
+    layout.add(std::make_unique<Param>("fuzz_octave", "Octave Up",   NR(0.0f, 1.0f,  0.01f), 0.0f));
+    layout.add(std::make_unique<Param>("fb_chaos",    "Chaos",       NR(0.0f, 1.0f,  0.01f), 0.0f));
+    layout.add(std::make_unique<Param>("fb_freq",     "Chaos Freq",  NR(0.0f, 1.0f,  0.01f), 0.4f));
+    layout.add(std::make_unique<Param>("crush_bits",  "Bit Depth",   NR(1.0f, 16.0f, 0.1f),  16.0f));
+    layout.add(std::make_unique<Param>("crush_rate",  "Rate Crush",  NR(0.0f, 1.0f,  0.01f), 0.0f));
+    layout.add(std::make_unique<Param>("rev_size",    "Room Size",   NR(0.0f, 1.0f,  0.01f), 0.6f));
+    layout.add(std::make_unique<Param>("rev_damp",    "Damp",        NR(0.0f, 1.0f,  0.01f), 0.5f));
+    layout.add(std::make_unique<Param>("rev_shimmer", "Shimmer",     NR(0.0f, 1.0f,  0.01f), 0.0f));
+    layout.add(std::make_unique<Param>("rev_mix",     "Reverb Mix",  NR(0.0f, 1.0f,  0.01f), 0.4f));
+    layout.add(std::make_unique<ParamB>("freeze",     "Freeze",      false));
+    layout.add(std::make_unique<Param>("noise",       "Noise Floor", NR(0.0f, 1.0f,  0.01f), 0.0f));
+    layout.add(std::make_unique<Param>("wet_dry",     "Wet/Dry",     NR(0.0f, 1.0f,  0.01f), 1.0f));
 
     return layout;
 }
@@ -55,6 +42,27 @@ void DissolutionProcessor::prepareToPlay(double sr, int maxBlock)
     shimmer.prepare(sr, maxBlock);
     freeze.prepare(sr, maxBlock);
     dryBuffer.setSize(2, maxBlock);
+
+    // ~20 ms one-pole smoothing coefficient
+    smoothCoef = static_cast<float>(std::exp(-1.0 / (sr * 0.02)));
+
+    // Initialise smoothers to current param values so there's no ramp at startup
+    smDrive   = *apvts.getRawParameterValue("fuzz_drive");
+    smTone    = *apvts.getRawParameterValue("fuzz_tone");
+    smOct     = *apvts.getRawParameterValue("fuzz_octave");
+    smChaos   = *apvts.getRawParameterValue("fb_chaos");
+    smFreq    = *apvts.getRawParameterValue("fb_freq");
+    smBits    = *apvts.getRawParameterValue("crush_bits");
+    smRate    = *apvts.getRawParameterValue("crush_rate");
+    smSize    = *apvts.getRawParameterValue("rev_size");
+    smDamp    = *apvts.getRawParameterValue("rev_damp");
+    smShimmer = *apvts.getRawParameterValue("rev_shimmer");
+    smRevMix  = *apvts.getRawParameterValue("rev_mix");
+    smNoise   = *apvts.getRawParameterValue("noise");
+    smWetDry  = *apvts.getRawParameterValue("wet_dry");
+
+    // Report FFT latency so DAWs can compensate on parallel tracks
+    setLatencySamples(SpectralFreeze::kLatencySamples);
 }
 
 void DissolutionProcessor::releaseResources()
@@ -72,62 +80,65 @@ void DissolutionProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const int numCh      = buffer.getNumChannels();
     const int numSamples = buffer.getNumSamples();
 
-    float fuzzDrive  = *apvts.getRawParameterValue("fuzz_drive");
-    float fuzzTone   = *apvts.getRawParameterValue("fuzz_tone");
-    float fuzzOct    = *apvts.getRawParameterValue("fuzz_octave");
-    float fbChaos    = *apvts.getRawParameterValue("fb_chaos");
-    float fbFreq     = *apvts.getRawParameterValue("fb_freq");
-    float crushBits  = *apvts.getRawParameterValue("crush_bits");
-    float crushRate  = *apvts.getRawParameterValue("crush_rate");
-    float revSize    = *apvts.getRawParameterValue("rev_size");
-    float revDamp    = *apvts.getRawParameterValue("rev_damp");
-    float revShimmer = *apvts.getRawParameterValue("rev_shimmer");
-    float revMix     = *apvts.getRawParameterValue("rev_mix");
-    bool  isFrozen   = *apvts.getRawParameterValue("freeze") > 0.5f;
-    float noise      = *apvts.getRawParameterValue("noise");
-    float wetDry     = *apvts.getRawParameterValue("wet_dry");
+    // Advance each one-pole smoother one step toward the current APVTS value.
+    // Applied once per block — eliminates zipper noise without per-sample overhead.
+    auto smooth = [&](float& s, const char* id) {
+        s = s * smoothCoef + *apvts.getRawParameterValue(id) * (1.0f - smoothCoef);
+    };
+    smooth(smDrive,   "fuzz_drive");
+    smooth(smTone,    "fuzz_tone");
+    smooth(smOct,     "fuzz_octave");
+    smooth(smChaos,   "fb_chaos");
+    smooth(smFreq,    "fb_freq");
+    smooth(smBits,    "crush_bits");
+    smooth(smRate,    "crush_rate");
+    smooth(smSize,    "rev_size");
+    smooth(smDamp,    "rev_damp");
+    smooth(smShimmer, "rev_shimmer");
+    smooth(smRevMix,  "rev_mix");
+    smooth(smNoise,   "noise");
+    smooth(smWetDry,  "wet_dry");
+
+    const bool isFrozen = *apvts.getRawParameterValue("freeze") > 0.5f;
 
     // Stash dry signal for global wet/dry blend
     dryBuffer.setSize(numCh, numSamples, false, false, true);
     for (int ch = 0; ch < numCh; ++ch)
         dryBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
 
-    // Inject noise floor (before fuzz — it becomes part of the distortion texture)
-    if (noise > 0.001f)
+    // Noise floor injected pre-fuzz so it becomes part of the distortion texture
+    if (smNoise > 0.001f)
     {
-        float noiseAmt = noise * noise * 0.08f; // squared for perceptual scaling
-        juce::Random rng;
+        float noiseAmt = smNoise * smNoise * 0.08f;
         for (int ch = 0; ch < numCh; ++ch)
         {
             auto* d = buffer.getWritePointer(ch);
             for (int i = 0; i < numSamples; ++i)
-                d[i] += (rng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
+                d[i] += (noiseRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
         }
     }
 
-    // Chain: fuzz → chaos filter → crusher → shimmer reverb → spectral freeze
-    if (fuzzDrive > 0.001f || fuzzOct > 0.001f)
-        fuzz.process(buffer, fuzzDrive, fuzzTone, fuzzOct);
+    if (smDrive > 0.001f || smOct > 0.001f)
+        fuzz.process(buffer, smDrive, smTone, smOct);
 
-    if (fbChaos > 0.001f)
-        feedbackMatrix.process(buffer, fbChaos, fbFreq);
+    if (smChaos > 0.001f)
+        feedbackMatrix.process(buffer, smChaos, smFreq);
 
-    if (crushBits < 15.9f || crushRate > 0.001f)
-        crusher.process(buffer, crushBits, crushRate);
+    if (smBits < 15.9f || smRate > 0.001f)
+        crusher.process(buffer, smBits, smRate);
 
-    shimmer.process(buffer, revSize, revDamp, revShimmer, revMix);
+    shimmer.process(buffer, smSize, smDamp, smShimmer, smRevMix);
 
     freeze.process(buffer, isFrozen);
 
-    // Global wet/dry
-    if (wetDry < 0.999f)
+    if (smWetDry < 0.999f)
     {
         for (int ch = 0; ch < numCh; ++ch)
         {
-            auto* wet = buffer.getWritePointer(ch);
+            auto*       wet = buffer.getWritePointer(ch);
             const auto* dry = dryBuffer.getReadPointer(ch);
             for (int i = 0; i < numSamples; ++i)
-                wet[i] = dry[i] * (1.0f - wetDry) + wet[i] * wetDry;
+                wet[i] = dry[i] * (1.0f - smWetDry) + wet[i] * smWetDry;
         }
     }
 }

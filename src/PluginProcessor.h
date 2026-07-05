@@ -25,11 +25,11 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 4.0; }
 
-    int  getNumPrograms() override                                  { return 1; }
-    int  getCurrentProgram() override                               { return 0; }
-    void setCurrentProgram(int) override                            {}
-    const juce::String getProgramName(int) override                 { return {}; }
-    void changeProgramName(int, const juce::String&) override       {}
+    int  getNumPrograms() override                            { return 1; }
+    int  getCurrentProgram() override                         { return 0; }
+    void setCurrentProgram(int) override                      {}
+    const juce::String getProgramName(int) override           { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
 
     void getStateInformation(juce::MemoryBlock& dest) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
@@ -45,6 +45,16 @@ private:
     SpectralFreeze  freeze;
 
     juce::AudioBuffer<float> dryBuffer;
+    juce::Random             noiseRng;
+
+    // One-pole IIR smoothers for every continuous parameter (eliminates zipper noise).
+    // Updated once per block; coefficient set in prepareToPlay (~20 ms time constant).
+    float smoothCoef = 0.0f;
+    float smDrive = 0.0f,  smTone = 0.7f,    smOct = 0.0f;
+    float smChaos = 0.0f,  smFreq = 0.4f;
+    float smBits  = 16.0f, smRate = 0.0f;
+    float smSize  = 0.6f,  smDamp = 0.5f,    smShimmer = 0.0f, smRevMix = 0.4f;
+    float smNoise = 0.0f,  smWetDry = 1.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DissolutionProcessor)
 };

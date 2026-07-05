@@ -14,10 +14,12 @@ public:
     void process(juce::AudioBuffer<float>& buffer, bool frozen);
     bool isActive() const; // true while frozen or draining
 
+    static constexpr int kLatencySamples = 1 << 11; // 2048 — report to DAW via setLatencySamples
+
 private:
-    static constexpr int kOrder   = 11;          // FFT size = 2048
-    static constexpr int kFFTSize = 1 << kOrder;
-    static constexpr int kHop     = kFFTSize / 4; // 75% overlap
+    static constexpr int kOrder   = 11;
+    static constexpr int kFFTSize = kLatencySamples;
+    static constexpr int kHop     = kFFTSize / 4;
 
     juce::dsp::FFT fft { kOrder };
     juce::Random   rng;

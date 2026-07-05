@@ -26,9 +26,9 @@ void ShimmerReverb::prepare(double sr, int /*maxBlockSize*/)
         }
 
         shimBuf[ch].assign(kShimBufSize, 0.0f);
-        shimWritePos[ch] = 0;
-        shimReadPos[ch]  = kShimBufSize / 2.0f; // start half a buffer behind
-        shimFeedback[ch] = 0.0f;
+        shimWritePos[ch]    = 0;
+        shimGrainPos[ch][0] = 0.0f;
+        shimGrainPos[ch][1] = kShimBufSize / 2.0f; // offset by half buffer
     }
 
     reset();
@@ -96,17 +96,28 @@ void ShimmerReverb::process(juce::AudioBuffer<float>& buffer,
                 wet = v - w * 0.5f;
             }
 
-            // --- Shimmer: pitch shift wet signal up one octave ---
-            // Write current wet into shimmer circular buffer
+            // --- Shimmer: two-grain pitch shifter, +1 octave ---
+            // Two grains offset by half the buffer, each windowed with Hann.
+            // Hann windows of offset-by-half grains sum to unity gain everywhere,
+            // so there's no amplitude dip or click at the wrap boundary.
             shimBuf[ch][shimWritePos[ch]] = wet;
 
-            // Read at 2x speed (octave up) — as we write 1 sample, read advances 2
-            float shimOut   = readLinear(shimBuf[ch], shimReadPos[ch]);
-            shimReadPos[ch] += 2.0f; // double speed = +1 octave
-            if (shimReadPos[ch] >= kShimBufSize) shimReadPos[ch] -= kShimBufSize;
+            auto grainWindow = [](float pos, float sz) {
+                return 0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi * pos / sz));
+            };
+
+            float outA = readLinear(shimBuf[ch], shimGrainPos[ch][0]);
+            float outB = readLinear(shimBuf[ch], shimGrainPos[ch][1]);
+            float winA = grainWindow(shimGrainPos[ch][0], kShimBufSize);
+            float winB = grainWindow(shimGrainPos[ch][1], kShimBufSize);
+            float shimOut = outA * winA + outB * winB;
+
+            shimGrainPos[ch][0] += 2.0f;
+            shimGrainPos[ch][1] += 2.0f;
+            if (shimGrainPos[ch][0] >= kShimBufSize) shimGrainPos[ch][0] -= kShimBufSize;
+            if (shimGrainPos[ch][1] >= kShimBufSize) shimGrainPos[ch][1] -= kShimBufSize;
             shimWritePos[ch] = (shimWritePos[ch] + 1) % kShimBufSize;
 
-            // Blend shimmer back into wet reverb
             wet += shimmer * shimOut;
 
             d[i] = dry * (1.0f - mix) + wet * mix;

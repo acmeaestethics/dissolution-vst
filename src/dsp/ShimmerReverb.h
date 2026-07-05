@@ -40,12 +40,13 @@ private:
 
     DelayLine allpass[2][kNumAllpass];
 
-    // Pitch shifter delay line for shimmer (+1 octave)
+    // Two-grain pitch shifter for shimmer (+1 octave).
+    // Grains are offset by half the buffer and crossfaded with Hann windows
+    // so neither grain ever clicks on wrap-around.
     static constexpr int kShimBufSize = 4096;
     std::vector<float> shimBuf[2];
-    int   shimWritePos[2] = { 0, 0 };
-    float shimReadPos[2]  = { 0.0f, 0.0f };
-    float shimFeedback[2] = { 0.0f, 0.0f };
+    int   shimWritePos[2]      = { 0, 0 };
+    float shimGrainPos[2][2]   = {};   // [channel][grain 0 or 1]
 
     double sampleRate = 44100.0;
 
